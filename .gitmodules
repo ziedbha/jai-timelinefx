@@ -1,0 +1,4 @@
+[submodule "timelinefx"]
+	path = timelinefx
+	url = https://github.com/peterigz/timelinefxlib.git
+	branch = master

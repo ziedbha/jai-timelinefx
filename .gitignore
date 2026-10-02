@@ -1,0 +1,16 @@
+/module/
+/.build/
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.exp
+*.ilk
+*.a
+*.o
+*.so
+*.dylib
+*.so.*
+
+/generated/
