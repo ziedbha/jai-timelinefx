@@ -16,7 +16,8 @@ AT_COMPILE_TIME :: true; // Set false to build generate.exe
     #run,stallable {
         set_build_options_dc(.{do_output = false});
         set_working_directory(#filepath);
-        if !generate_timelinefx() compiler_set_workspace_status(.FAILED);
+        tracy_path, valid := parse_tracy_path(get_build_options().compile_time_command_line);
+        if !valid || !generate_timelinefx(tracy_path) compiler_set_workspace_status(.FAILED);
     }
 } else {
     #import "System";
@@ -26,18 +27,38 @@ AT_COMPILE_TIME :: true; // Set false to build generate.exe
     }
     main :: () {
         set_working_directory(path_strip_filename(get_path_of_running_executable()));
-        if !generate_timelinefx() exit(1);
+        args := get_command_line_arguments();
+        tracy_path, valid := parse_tracy_path(slice(args, 1, args.count));
+        if !valid || !generate_timelinefx(tracy_path) exit(1);
     }
 }
 
-generate_timelinefx :: (check_types := false, build_native := true) -> bool {
+parse_tracy_path :: (args: [] string) -> (string, bool) {
+    if args.count == 0 return "", true;
+    if args.count != 2 || args[0] != "--tracy" || args[1].count == 0 {
+        log_error("Usage: jai generate.jai - --tracy <Tracy public directory>");
+        return "", false;
+    }
+    path, ok := get_absolute_path(args[1]);
+    if !ok || !file_exists(tprint("%/tracy/Tracy.hpp", path)) {
+        log_error("Missing Tracy headers: %/tracy/Tracy.hpp.", args[1]);
+        return "", false;
+    }
+    return path, true;
+}
+
+generate_timelinefx :: (tracy_include_directory: string = "", check_types := false, build_native := true) -> bool {
     print("Building TimelineFX for %/%...\n", OS, CPU);
     if !file_exists(tprint("%/timelinefx.h", SOURCE_PATH)) {
         log_error("Missing TimelineFX source: %/timelinefx.h.", SOURCE_PATH);
         return false;
     }
     if build_native {
-        result := run_command("jai", "build_native.jai", "-", SOURCE_PATH, OUTPUT_DIRECTORY, LIB_BASE_NAME, capture_and_return_output = true, print_captured_output = true);
+        command: [..] string;
+        array_add(*command, "jai", "build_native.jai", "-", SOURCE_PATH, OUTPUT_DIRECTORY, LIB_BASE_NAME);
+        if tracy_include_directory.count array_add(*command, tracy_include_directory);
+        result := run_command(..command, capture_and_return_output = true, print_captured_output = true);
+        array_free(command);
         if result.type != .EXITED || result.exit_code != 0 return false;
     }
 
@@ -354,6 +375,7 @@ visit_timelinefx_api :: (decl: *Declaration, parent: *Declaration, user_data: *v
 }
 
 MODULE_SOURCE :: #string END
+#module_parameters(DEBUG := false);
 
 #if OS == .WINDOWS {
     #load "windows/windows.jai";
@@ -368,15 +390,27 @@ MODULE_SOURCE :: #string END
 #scope_module
 Math :: #import "Math"; // For Vector types
 #if OS == .WINDOWS {
-    timelinefx :: #library,no_dll "windows/timelinefx";
+    #if DEBUG {
+        timelinefx :: #library,no_dll "windows/timelinefx_debug";
+    } else {
+        timelinefx :: #library,no_dll "windows/timelinefx";
+    }
     #library,system,link_always "libcpmt";
 } else #if OS == .LINUX {
-    timelinefx :: #library,no_dll "linux/timelinefx";
+    #if DEBUG {
+        timelinefx :: #library,no_dll "linux/timelinefx_debug";
+    } else {
+        timelinefx :: #library,no_dll "linux/timelinefx";
+    }
     #library,system "stdc++";
     #library,system "pthread";
     #library,system "m";
 } else #if OS == .MACOS {
-    timelinefx :: #library,no_dll "macos/timelinefx";
+    #if DEBUG {
+        timelinefx :: #library,no_dll "macos/timelinefx_debug";
+    } else {
+        timelinefx :: #library,no_dll "macos/timelinefx";
+    }
     #library,system "c++";
 }
 END

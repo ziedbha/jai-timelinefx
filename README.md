@@ -21,10 +21,24 @@ From the repository root:
 
 Output goes to `generated/TimelineFX/`.
 
+Tracy instrumentation is off by default. To enable it, pass the directory containing `tracy/Tracy.hpp`:
+
+```sh
+jai generate.jai - --tracy "path_to_tracy"
+```
+
+Make sure to link your application to the matching Tracy client library. This option applies to both native build variants.
+
 ## Example usage
 
 Add contents of `generated/` to your project's module search path, then import:
 
 ```jai
 tfx :: #import "TimelineFX";
+```
+
+Generation builds optimized and unoptimized native libraries side by side. To use the unoptimized library with debug symbols and assertions:
+
+```jai
+tfx :: #import "TimelineFX"(DEBUG = true);
 ```
